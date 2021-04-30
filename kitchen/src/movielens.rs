@@ -4,9 +4,6 @@ use crate::movie::Movie;
 use std::io::Cursor;
 
 use reqwest::blocking::get as http_get;
-use md5;
-use zip;
-use csv;
 
 static CSV_NAME: &str = "ml-youtube.csv";
 static ZIP_URL: &str = "http://files.grouplens.org/datasets/movielens/ml-20m-youtube.zip";
