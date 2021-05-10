@@ -1,19 +1,51 @@
 use zip;
 
+pub type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Debug)]
 pub enum Error {
+    Unknown,
+    Generic(String),
     Checksum(String, String),
     IO(std::io::Error),
     Http(reqwest::Error),
+    UnknownGenre(String),
+    ParseError(String),
+    JSON(serde_json::Error),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        use Error::*;
+
         match &self {
-            &Error::Checksum(ref a, ref b) => write!(fmt, "mismatched checksum: {} != {}", a, b),
-            &Error::IO(ref err) => err.fmt(fmt),
-            &Error::Http(ref err) => err.fmt(fmt),
+            &Unknown => write!(fmt, "unknown"),
+            &Generic(ref s) => s.fmt(fmt),
+            &Checksum(ref a, ref b) => write!(fmt, "mismatched checksum: '{}' != '{}'", a, b),
+            &IO(ref err) => err.fmt(fmt),
+            &Http(ref err) => err.fmt(fmt),
+            &UnknownGenre(ref text) => write!(fmt, "unknown genre: '{}'", text),
+            &ParseError(ref s) => write!(fmt, "failed to parse: '{}'", s),
+            &JSON(ref err) => err.fmt(fmt),
         }
+    }
+}
+
+impl From<()> for Error {
+    fn from(_: ()) -> Self {
+        Error::Unknown
+    }
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Error::Generic(s)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(s: &str) -> Self {
+        Error::Generic(s.to_owned())
     }
 }
 
@@ -41,4 +73,8 @@ impl From<csv::Error> for Error {
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::JSON(err)
+    }
+}
