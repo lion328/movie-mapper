@@ -12,6 +12,8 @@ pub enum Error {
     UnknownGenre(String),
     ParseError(String),
     JSON(serde_json::Error),
+    YoutubeDL(String),
+    FFMPEG(String),
 }
 
 impl std::fmt::Display for Error {
@@ -27,6 +29,8 @@ impl std::fmt::Display for Error {
             &UnknownGenre(ref text) => write!(fmt, "unknown genre: '{}'", text),
             &ParseError(ref s) => write!(fmt, "failed to parse: '{}'", s),
             &JSON(ref err) => err.fmt(fmt),
+            &YoutubeDL(ref err) => err.fmt(fmt),
+            &FFMPEG(ref err) => err.fmt(fmt),
         }
     }
 }
