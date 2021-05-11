@@ -11,8 +11,9 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use indicatif::ProgressIterator;
+use indicatif::ProgressBar;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 
 lazy_static! {
     static ref MOVIES_JSON_PATH: &'static Path = Path::new("movies.json");
@@ -23,27 +24,24 @@ fn main() -> Result<()> {
 
     let mut movies = init_movies()?;
 
-    // return Ok(());
-
     println!("Filling missing information...");
 
     let movies_2000: Vec<_> = movies.iter_mut()
         .filter(|m| m.year >= Some(2000))
         .collect();
-    // let len = movies_2000.len();
 
-    for (i, movie) in movies_2000.into_iter().enumerate().progress() {
-        // println!("{}/{}: '{}' ({:?})", i, len, movie.name, movie.year);
-
-        let result = fill_movie_info(movie);
-        if result.is_err() {
-            eprintln!("Failed to fill '{}': {}\n", movie.name, result.unwrap_err().to_string());
-        }
-
-        // println!("metascore: {:?}, critics #: {:?}, genres: {:?}",
-        //     movie.metacritic_score, movie.critics_number, movie.genres);
-        // sleep(Duration::from_millis(500));
-    }
+    let bar = ProgressBar::new(movies_2000.len() as u64);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(16).build().unwrap();
+    pool.install(|| {
+        movies_2000.into_par_iter().for_each(|movie| {
+            let result = fill_movie_info(movie);
+            if result.is_err() {
+                eprintln!("Failed to fill '{}' ({:?}): {}\n",
+                    movie.name, movie.year, result.unwrap_err().to_string());
+            }
+            bar.inc(1);
+        });
+    });
 
     println!("Saving movies into disk...");
     save_movies(&movies)?;
@@ -77,11 +75,11 @@ fn fill_movie_info(movie: &mut Movie) -> Result<()> {
     }
 
     if movie.critics_number.is_none() {
-        movie.critics_number = Some(imdb::get_critics_number(&page)?);
+        movie.critics_number = imdb::get_critics_number(&page).ok(); // ignore error
     }
 
     if movie.metacritic_score.is_none() {
-        movie.metacritic_score = imdb::get_metascore(&page).ok(); // ignore error
+        movie.metacritic_score = imdb::get_metascore(&page).ok();
     }
 
     Ok(())

@@ -10,7 +10,7 @@ const IMDB_BASE_URL_STR: &str = "https://www.imdb.com";
 
 lazy_static! {
     static ref CRITICS_NUMBER_REGEX: Regex = Regex::new(r"(\d+) critic").unwrap();
-    static ref TITLE_YEAR_REGEX: Regex = Regex::new(r"\((\d{4})\)[^\)]*$").unwrap();
+    static ref TITLE_YEAR_TYPE_REGEX: Regex = Regex::new(r"\((\d{4})\)\s*(?:\((.*)\))?\s*$").unwrap();
     static ref TITLE_HREF_ID_REGEX: Regex = Regex::new(r"/tt(\d+)/").unwrap();
 }
 
@@ -20,16 +20,19 @@ fn parse_page<T: IntoUrl>(url: T) -> Result<NodeRef> {
 }
 
 pub fn search(name: &str, year: Option<u32>) -> Result<u32> {
-    let query_tmp;
-    let query = if let Some(year) = year {
-        query_tmp = format!("{} ({})", name, year);
-        &query_tmp
-    } else {
-        name
-    };
+    search_impl(name, year, false)
+}
 
-    let url = Url::parse_with_params(&format!("{}/find", IMDB_BASE_URL_STR), &[("q", query)])
-        .map_err(|e| Error::ParseError(format!("url: {:?}", e)))?;
+pub fn search_exact(name: &str, year: Option<u32>) -> Result<u32> {
+    search_impl(name, year, true)
+}
+
+fn search_impl(name: &str, year: Option<u32>, exact: bool) -> Result<u32> {
+    let url = Url::parse_with_params(&format!("{}/find", IMDB_BASE_URL_STR), &[
+        ("q", name),
+        ("s", "tt"),
+        ("exact", &exact.to_string()),
+    ]).map_err(|e| Error::ParseError(format!("url: {:?}", e)))?;
 
     let mut candidate: Option<(u32, u32)> = None;
 
@@ -58,22 +61,31 @@ pub fn search(name: &str, year: Option<u32>) -> Result<u32> {
             (id, text)
         };
 
-        let searched_year: u32 = {
-            let node = siblings.next().unwrap();
-            let text = node.as_text().unwrap();
-            let s = text.borrow();
+        let node = siblings.next().unwrap();
+        let text = node.as_text().unwrap();
+        let s = text.borrow();
 
-            let captures = TITLE_YEAR_REGEX.captures(&s);
-            if captures.is_none() {
-                0
-            } else {
-                let year_str = captures.unwrap().get(1).unwrap().as_str();
-                year_str.parse().map_err(|_| Error::ParseError(year_str.to_owned()))?
-            }
+        let captures = TITLE_YEAR_TYPE_REGEX.captures(&s);
+
+        let mut searched_year = 0;
+        let mut title_type = None;
+
+        if let Some(captures) = captures {
+            let year_str = captures.get(1).unwrap().as_str();
+            searched_year = year_str.parse().map_err(|_| Error::ParseError(year_str.to_owned()))?;
+            title_type = captures.get(2).map(|t| t.as_str());
         };
 
+        if title_type.map(|t|
+            t.contains("TV")
+            && !t.contains("TV Movie")
+            && !t.contains("TV Special")
+        ) == Some(true) {
+            continue;
+        }
+
         let mut loss = 1;
-        if name.trim().to_lowercase() != searched_name_ref.borrow().trim().to_lowercase() {
+        if !exact && name.trim().to_lowercase() != searched_name_ref.borrow().trim().to_lowercase() {
             loss = 2;
         }
 
@@ -181,7 +193,11 @@ mod tests {
         assert_eq!(LORD_OF_THE_RINGS_2001_ID,
             super::search("Lord of the Rings: The Fellowship of the Ring, The", Some(2001)).unwrap());
 
-        assert_eq!(127349, super::search("Waking the Dead", Some(2000)).unwrap());
+        assert_eq!(127349, super::search_exact("Waking the Dead", Some(2000)).unwrap());
+        assert_eq!(344864, super::search_exact("Atlantis: Milo's Return", Some(2003)).unwrap());
+        assert_eq!(1363127, super::search_exact("Northern Lights", Some(2009)).unwrap());
+        assert_eq!(1165253, super::search_exact("Dream", Some(2008)).unwrap());
+        assert_eq!(1439235, super::search_exact("Jim Jefferies: I Swear to God", Some(2008)).unwrap());
     }
 
     #[test]
