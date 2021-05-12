@@ -11,22 +11,31 @@ lazy_static! {
     static ref FFPROBE_DURATION_REGEX: Regex = Regex::new("duration=(.*)").unwrap();
 }
 
-pub fn download_youtube_mp3<T: AsRef<Path>>(id: &str, path: T) -> Result<()> {
+pub fn download_youtube_m4a_by_id<T: AsRef<Path>>(id: &str, path: T) -> Result<()> {
+    download_youtube_m4a_impl(&format!("https://www.youtube.com/watch?v={}", id), path)
+}
+
+pub fn download_youtube_m4a_by_search<T: AsRef<Path>>(search: &str, path: T) -> Result<()> {
+    download_youtube_m4a_impl(&format!("ytsearch1:{}", search), path)
+}
+
+fn download_youtube_m4a_impl<T: AsRef<Path>>(query: &str, path: T) -> Result<()> {
     let output = Command::new("youtube-dl")
         .args(&[
             "-x",
             "--audio-format",
-            "mp3",
+            "m4a",
             "--audio-quality",
             "9",
-            "-r",
-            "250K",
             "-o",
         ])
         .arg(path.as_ref().with_extension("%(ext)s"))
-        .arg(format!("https://www.youtube.com/watch?v={}", id))
+        .arg(query)
         .output()?;
     
+    std::fs::write(path.as_ref().with_extension("out.log"), &output.stdout)?;
+    std::fs::write(path.as_ref().with_extension("err.log"), &output.stderr)?;
+
     if !output.status.success() {
         return Err(Error::YoutubeDL(str::from_utf8(&output.stderr).unwrap().to_owned()));
     }
@@ -78,9 +87,9 @@ mod tests {
     #[test]
     fn youtube_duration() {
         let tempdir = tempfile::tempdir().unwrap();
-        let path = tempdir.path().join("test.mp3");
+        let path = tempdir.path().join("test.m4a");
 
-        super::download_youtube_mp3("jNQXAC9IVRw", &path).unwrap();
+        super::download_youtube_m4a_by_id("jNQXAC9IVRw", &path).unwrap();
         assert_eq!(18960, super::get_audio_length(&path).unwrap());
 
         tempdir.close().unwrap();
