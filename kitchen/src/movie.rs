@@ -12,7 +12,7 @@ pub struct Movie {
     pub metacritic_score: Option<u8>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum Genre {
     Fantasy,
     Comedy,
@@ -79,5 +79,11 @@ impl Genre {
             "Film-Noir" => FilmNoir,
             x => return Err(Error::UnknownGenre(x.to_owned())),
         })
+    }
+}
+
+impl std::fmt::Display for Genre { 
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        std::fmt::Debug::fmt(self, fmt)
     }
 }

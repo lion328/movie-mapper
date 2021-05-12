@@ -4,7 +4,7 @@ use crate::movie::Genre;
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::{blocking::get as http_get, Url, IntoUrl};
-use kuchiki::{traits::*, NodeRef, NodeData};
+use kuchiki::{traits::*, NodeRef};
 
 const IMDB_BASE_URL_STR: &str = "https://www.imdb.com";
 
@@ -23,6 +23,7 @@ pub fn search(name: &str, year: Option<u32>) -> Result<u32> {
     search_impl(name, year, false)
 }
 
+#[cfg(test)]
 pub fn search_exact(name: &str, year: Option<u32>) -> Result<u32> {
     search_impl(name, year, true)
 }
